@@ -1,0 +1,140 @@
+MANUAL DEPLOYMENT INSTRUCTIONS FOR KAITEN BOT
+==============================================
+
+Server Details:
+- IP: 155.212.222.89
+- User: root
+- Password: XvUA8!1nuIV
+
+OPTION 1: Use the automated script (Recommended)
+-------------------------------------------------
+From Git Bash or WSL on Windows:
+
+1. Navigate to project directory:
+   cd "C:\CURSOR\KAITEN BOT"
+
+2. Run the deployment script:
+   bash deploy.sh
+
+   (It will ask for password multiple times - enter: XvUA8!1nuIV)
+
+
+OPTION 2: Manual step-by-step deployment
+-----------------------------------------
+
+1. Connect to server:
+   ssh root@155.212.222.89
+   Password: XvUA8!1nuIV
+
+2. Create directory and check Python:
+   mkdir -p /root/kaiten-bot
+   cd /root/kaiten-bot
+   python3 --version
+   pip3 --version
+
+   # If Python not found, install:
+   apt-get update && apt-get install -y python3 python3-pip python3-venv
+
+3. Transfer files from your local machine (in NEW terminal, not SSH):
+   scp "C:\CURSOR\KAITEN BOT\main.py" root@155.212.222.89:/root/kaiten-bot/
+   scp "C:\CURSOR\KAITEN BOT\requirements.txt" root@155.212.222.89:/root/kaiten-bot/
+
+4. Back in SSH session, create .env file:
+   cat > /root/kaiten-bot/.env << 'EOF'
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+OPENAI_API_KEY=your_openai_api_key_here
+KAITEN_API_KEY=your_kaiten_api_key_here
+EOF
+
+   chmod 600 .env
+
+5. Create virtual environment and install dependencies:
+   cd /root/kaiten-bot
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install --upgrade pip
+   pip install -r requirements.txt
+
+6. Test the bot manually:
+   python3 main.py
+
+   (Press Ctrl+C to stop, then continue to next step)
+
+7. Create systemd service for auto-start:
+   cat > /etc/systemd/system/kaiten-bot.service << 'EOF'
+[Unit]
+Description=Kaiten Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/kaiten-bot
+Environment="PATH=/root/kaiten-bot/venv/bin"
+ExecStart=/root/kaiten-bot/venv/bin/python3 /root/kaiten-bot/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+8. Enable and start the service:
+   systemctl daemon-reload
+   systemctl enable kaiten-bot.service
+   systemctl start kaiten-bot.service
+
+9. Check status:
+   systemctl status kaiten-bot.service
+
+
+USEFUL COMMANDS AFTER DEPLOYMENT
+---------------------------------
+
+Check bot status:
+   systemctl status kaiten-bot
+
+View real-time logs:
+   journalctl -u kaiten-bot -f
+
+Restart bot:
+   systemctl restart kaiten-bot
+
+Stop bot:
+   systemctl stop kaiten-bot
+
+Start bot:
+   systemctl start kaiten-bot
+
+Check if bot is running:
+   ps aux | grep python3
+
+
+TROUBLESHOOTING
+---------------
+
+If bot won't start:
+1. Check logs: journalctl -u kaiten-bot -n 50
+2. Test manually: cd /root/kaiten-bot && source venv/bin/activate && python3 main.py
+3. Check permissions: ls -la /root/kaiten-bot
+4. Verify .env file: cat /root/kaiten-bot/.env
+
+If dependencies fail:
+   pip install --upgrade pip setuptools wheel
+   pip install -r requirements.txt --no-cache-dir
+
+If port issues:
+   # Telegram bots use outbound connections only, no ports needed
+   # Make sure outbound HTTPS (443) is allowed
+
+
+SECURITY NOTES
+--------------
+⚠️ IMPORTANT: After deployment, you should:
+1. Change the root password: passwd
+2. Create a non-root user for the bot
+3. Set up SSH key authentication
+4. Disable password authentication in /etc/ssh/sshd_config
+5. Configure firewall (ufw or iptables)
